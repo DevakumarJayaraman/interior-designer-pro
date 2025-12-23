@@ -20,6 +20,7 @@ public class QuotationService {
   private final AreaRepository areaRepository;
   private final CutlistItemRepository cutlistItemRepository;
   private final PricingService pricingService;
+  private final TemplateEngineService templateEngineService;
 
   public QuotationService(QuotationRepository quotationRepository,
                           QuoteItemRepository quoteItemRepository,
@@ -27,7 +28,8 @@ public class QuotationService {
                           ProjectRepository projectRepository,
                           AreaRepository areaRepository,
                           CutlistItemRepository cutlistItemRepository,
-                          PricingService pricingService) {
+                          PricingService pricingService,
+                          TemplateEngineService templateEngineService) {
     this.quotationRepository = quotationRepository;
     this.quoteItemRepository = quoteItemRepository;
     this.productRepository = productRepository;
@@ -35,6 +37,7 @@ public class QuotationService {
     this.areaRepository = areaRepository;
     this.cutlistItemRepository = cutlistItemRepository;
     this.pricingService = pricingService;
+    this.templateEngineService = templateEngineService;
   }
 
   public Quotation loadOrCreateDraft(Long projectId) {
@@ -76,6 +79,7 @@ public class QuotationService {
     item.setWidth(payload.getWidth());
     item.setDepth(payload.getDepth());
     item.setNotes(payload.getNotes());
+    item.setTemplateParamsJson(payload.getTemplateParamsJson());  // Store template params
 
     double price = pricingService.compute(product, item.getQuantity(), item.getHeight(), item.getWidth(), item.getDepth());
     item.setComputedPrice(price);
@@ -97,6 +101,9 @@ public class QuotationService {
     item.setWidth(payload.getWidth());
     item.setDepth(payload.getDepth());
     item.setNotes(payload.getNotes());
+    if (payload.getTemplateParamsJson() != null) {
+      item.setTemplateParamsJson(payload.getTemplateParamsJson());
+    }
 
     double price = pricingService.compute(item.getProduct(), item.getQuantity(), item.getHeight(), item.getWidth(), item.getDepth());
     item.setComputedPrice(price);
@@ -176,6 +183,7 @@ public class QuotationService {
         ni.setDepth(it.getDepth());
         ni.setNotes(it.getNotes());
         ni.setComputedPrice(it.getComputedPrice());
+        ni.setTemplateParamsJson(it.getTemplateParamsJson());  // Copy template params
         quoteItemRepository.save(ni);
       }
       recalcTotal(copy.getId());
@@ -183,7 +191,7 @@ public class QuotationService {
     return copy;
   }
 
-  // Step 5: Cutlist generation (simple starter: one part per quote item)
+  // Step 5: Cutlist generation with template engine support
   @Transactional
   public List<CutlistItem> generateCutlist(Long quoteId) {
     Quotation q = quotationRepository.findById(quoteId).orElseThrow();
@@ -191,16 +199,30 @@ public class QuotationService {
 
     List<QuoteItem> items = quoteItemRepository.findByQuotation_Id(quoteId);
     List<CutlistItem> out = new ArrayList<>();
+
     for (QuoteItem it : items) {
-      CutlistItem ci = new CutlistItem();
-      ci.setQuotation(q);
-      ci.setQuoteItem(it);
-      ci.setPartName(it.getProduct().getName());
-      ci.setCutHeight(it.getHeight());
-      ci.setCutWidth(it.getWidth());
-      ci.setThickness(it.getDepth()); // using depth as thickness placeholder
-      ci.setQuantity(it.getQuantity() == null ? 1 : it.getQuantity());
-      out.add(cutlistItemRepository.save(ci));
+      // Try template engine first
+      List<CutlistItem> templateItems = templateEngineService.generateCutlistForQuoteItem(it);
+
+      if (!templateItems.isEmpty()) {
+        // Template-based generation successful
+        for (CutlistItem ci : templateItems) {
+          ci.setQuotation(q);
+          out.add(cutlistItemRepository.save(ci));
+        }
+      } else {
+        // Fallback: simple 1:1 mapping (legacy behavior)
+        CutlistItem ci = new CutlistItem();
+        ci.setQuotation(q);
+        ci.setQuoteItem(it);
+        ci.setPartName(it.getProduct().getName());
+        ci.setPartType("GENERIC");
+        ci.setCutHeight(it.getHeight());
+        ci.setCutWidth(it.getWidth());
+        ci.setThickness(it.getDepth()); // using depth as thickness placeholder
+        ci.setQuantity(it.getQuantity() == null ? 1 : it.getQuantity());
+        out.add(cutlistItemRepository.save(ci));
+      }
     }
     return out;
   }
@@ -209,7 +231,7 @@ public class QuotationService {
     return cutlistItemRepository.findByQuotation_Id(quoteId);
   }
 
-  // Step 6: Material usage summary (8x4 sheet, mm)
+  // Step 6: Material usage summary (8x4 sheet, mm) - grouped by material type and thickness
   public MaterialSummary materialSummary(Long quoteId) {
     double sheetArea = 2440.0 * 1220.0; // mm²
     List<CutlistItem> items = listCutlist(quoteId);

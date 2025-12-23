@@ -16,6 +16,8 @@ public class CutlistItem extends BaseEntity {
 
   private String partName;
 
+  private String partType;  // CARCASS, SHUTTER, DRAWER, BACK, etc.
+
   // Cutting size (mm)
   private Double cutHeight;
   private Double cutWidth;
@@ -23,5 +25,8 @@ public class CutlistItem extends BaseEntity {
 
   private Integer quantity = 1;
 
-  // Future: edge band sides, grain direction, material, etc.
+  // Manufacturing metadata
+  private String materialType;  // "18mm Plywood", "6mm Back Panel", etc.
+  private String edgeBanding;   // "ALL", "FRONT_ONLY", "NONE", etc.
+  private String grainDirection;  // "VERTICAL", "HORIZONTAL", "ANY"
 }

@@ -1,12 +1,14 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import { api } from '../api'
-import type { Client, Project, Area, Product, Quotation, QuoteItem, CutlistItem, MaterialSummary } from '../types'
+import type { Client, Project, Area, Product, Quotation, QuoteItem, CutlistItem, MaterialSummary, ProductTemplate, TemplateParam } from '../types'
 
 type EntitiesState = {
   clients: Client[]
   projects: Project[]
   areas: Area[]
   products: Product[]
+  templates: ProductTemplate[]
+  templateParams: TemplateParam[]
   quotes: Quotation[]
   quoteItems: QuoteItem[]
   cutlist: CutlistItem[]
@@ -20,6 +22,8 @@ const initial: EntitiesState = {
   projects: [],
   areas: [],
   products: [],
+  templates: [],
+  templateParams: [],
   quotes: [],
   quoteItems: [],
   cutlist: [],
@@ -42,6 +46,10 @@ export const deleteArea = createAsyncThunk('entities/deleteArea', (id:number) =>
 
 export const loadProducts = createAsyncThunk('entities/loadProducts', api.listProducts)
 export const createProduct = createAsyncThunk('entities/createProduct', api.createProduct)
+
+export const loadTemplates = createAsyncThunk('entities/loadTemplates', api.getTemplates)
+export const loadTemplateParams = createAsyncThunk('entities/loadTemplateParams', (templateId:number) => api.getTemplateParams(templateId))
+export const loadProductTemplateParams = createAsyncThunk('entities/loadProductTemplateParams', (productId:number) => api.getProductTemplateParams(productId))
 
 export const loadDraftQuote = createAsyncThunk('entities/loadDraftQuote', (projectId:number) => api.loadDraft(projectId))
 export const loadQuotes = createAsyncThunk('entities/loadQuotes', (projectId:number) => api.listQuotes(projectId))
@@ -79,6 +87,9 @@ const slice = createSlice({
     b.addCase(loadProjects.fulfilled, (state, action) => { state.projects = action.payload as any })
     b.addCase(loadAreas.fulfilled, (state, action) => { state.areas = action.payload as any })
     b.addCase(loadProducts.fulfilled, (state, action) => { state.products = action.payload as any })
+    b.addCase(loadTemplates.fulfilled, (state, action) => { state.templates = action.payload as any })
+    b.addCase(loadTemplateParams.fulfilled, (state, action) => { state.templateParams = action.payload as any })
+    b.addCase(loadProductTemplateParams.fulfilled, (state, action) => { state.templateParams = action.payload as any })
 
     b.addCase(createClient.fulfilled, (state, action) => { state.clients = [action.payload as any, ...state.clients] })
     b.addCase(createProject.fulfilled, (state, action) => { state.projects = [action.payload as any, ...state.projects] })

@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import SectionHeader from '../components/SectionHeader'
 import InlineError from '../components/InlineError'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
-import { addQuoteItem, deleteQuoteItem, loadAreas, loadProducts, loadQuoteItems, recalcQuote } from '../../store/entitiesSlice'
+import { addQuoteItem, deleteQuoteItem, loadAreas, loadProducts, loadQuoteItems, loadProductTemplateParams, recalcQuote } from '../../store/entitiesSlice'
 import { setStep } from '../../store/wizardSlice'
 
 export default function DimensionsStep() {
   const dispatch = useAppDispatch()
-  const { areas, products, quoteItems, loading, error, quotes } = useAppSelector(s => s.entities)
+  const { areas, products, quoteItems, templateParams, loading, error, quotes } = useAppSelector(s => s.entities)
   const projectId = useAppSelector(s => s.wizard.selectedProjectId)
   const quoteId = useAppSelector(s => s.wizard.selectedQuoteId)
 
@@ -22,6 +22,7 @@ export default function DimensionsStep() {
     depth: '',
     notes: '',
   })
+  const [templateParamValues, setTemplateParamValues] = useState<Record<string, string>>({})
   const [editingItemId, setEditingItemId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -40,6 +41,29 @@ export default function DimensionsStep() {
   useEffect(() => {
     if (products.length && !form.productId) setForm(f => ({ ...f, productId: products[0]!.id }))
   }, [products])
+
+  // Load template params when product changes
+  useEffect(() => {
+    if (form.productId && !editingItemId) {
+      dispatch(loadProductTemplateParams(form.productId))
+    }
+  }, [dispatch, form.productId, editingItemId])
+
+  // Initialize template param values with defaults
+  useEffect(() => {
+    const defaults: Record<string, string> = {}
+    templateParams.forEach(param => {
+      if (param.defaultValue !== undefined && param.defaultValue !== null) {
+        defaults[param.paramName] = String(param.defaultValue)
+      }
+    })
+    setTemplateParamValues(defaults)
+  }, [templateParams])
+
+  const selectedProduct = useMemo(() =>
+    products.find(p => p.id === form.productId),
+    [products, form.productId]
+  )
 
   // Get products already added to the selected area (for display/grouping purposes)
   const productsInSelectedArea = useMemo(() => {
@@ -123,6 +147,40 @@ export default function DimensionsStep() {
               <input className="input" placeholder="D/Thk (mm)" value={form.depth} onChange={e => setForm({ ...form, depth: e.target.value })} />
             </div>
 
+            {/* Template Parameters Section */}
+            {selectedProduct?.template && templateParams.length > 0 && (
+              <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 p-4">
+                <div className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-3">
+                  🔧 Template Parameters ({selectedProduct.template.name})
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {templateParams.map(param => (
+                    <div key={param.id}>
+                      <label className="text-xs text-slate-600 dark:text-slate-400 block mb-1">
+                        {param.displayLabel}
+                        {param.required && <span className="text-red-500 ml-1">*</span>}
+                      </label>
+                      <input
+                        type="number"
+                        className="input text-sm"
+                        placeholder={param.helpText || param.displayLabel}
+                        value={templateParamValues[param.paramName] || ''}
+                        min={param.minValue ?? undefined}
+                        max={param.maxValue ?? undefined}
+                        onChange={e => setTemplateParamValues({
+                          ...templateParamValues,
+                          [param.paramName]: e.target.value
+                        })}
+                      />
+                      {param.helpText && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{param.helpText}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <textarea className="input min-h-[90px]" placeholder="Notes (e.g., drawers, shelves, accessories)" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
 
             <div className="flex flex-wrap gap-2">
@@ -138,6 +196,12 @@ export default function DimensionsStep() {
                     onClick={async () => {
                       // Delete old item and add updated one
                       await dispatch(deleteQuoteItem(editingItemId)).unwrap()
+
+                      const templateParamsObj: Record<string, number> = {}
+                      Object.entries(templateParamValues).forEach(([key, val]) => {
+                        if (val) templateParamsObj[key] = Number(val)
+                      })
+
                       await dispatch(addQuoteItem({
                         quoteId: quoteId!,
                         areaId: form.areaId,
@@ -147,7 +211,10 @@ export default function DimensionsStep() {
                           height: form.height ? Number(form.height) : undefined,
                           width: form.width ? Number(form.width) : undefined,
                           depth: form.depth ? Number(form.depth) : undefined,
-                          notes: form.notes
+                          notes: form.notes,
+                          templateParamsJson: Object.keys(templateParamsObj).length > 0
+                            ? JSON.stringify(templateParamsObj)
+                            : undefined
                         }
                       })).unwrap()
                       await dispatch(recalcQuote(quoteId!))
@@ -165,6 +232,11 @@ export default function DimensionsStep() {
                   className="btn-primary"
                   disabled={!canAdd || loading}
                   onClick={async () => {
+                    const templateParamsObj: Record<string, number> = {}
+                    Object.entries(templateParamValues).forEach(([key, val]) => {
+                      if (val) templateParamsObj[key] = Number(val)
+                    })
+
                     await dispatch(addQuoteItem({
                       quoteId: quoteId!,
                       areaId: form.areaId,
@@ -174,11 +246,20 @@ export default function DimensionsStep() {
                         height: form.height ? Number(form.height) : undefined,
                         width: form.width ? Number(form.width) : undefined,
                         depth: form.depth ? Number(form.depth) : undefined,
-                        notes: form.notes
+                        notes: form.notes,
+                        templateParamsJson: Object.keys(templateParamsObj).length > 0
+                          ? JSON.stringify(templateParamsObj)
+                          : undefined
                       }
                     })).unwrap()
                     await dispatch(recalcQuote(quoteId!))
                     setForm({ ...form, quantity: '1', height: '', width: '', depth: '', notes: '' })
+                    // Reset template params to defaults
+                    const defaults: Record<string, string> = {}
+                    templateParams.forEach(param => {
+                      if (param.defaultValue !== undefined) defaults[param.paramName] = String(param.defaultValue)
+                    })
+                    setTemplateParamValues(defaults)
                   }}
                 >
                   {loading ? 'Adding...' : 'Add to Quote'}

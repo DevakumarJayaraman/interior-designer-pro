@@ -33,6 +33,12 @@ export const api = {
   // Products
   listProducts: () => request('/api/products'),
   createProduct: (body: any) => request('/api/products', { method: 'POST', body: JSON.stringify(body) }),
+  getProductTemplateParams: (productId: number) => request(`/api/products/${productId}/template-params`),
+
+  // Templates
+  getTemplates: () => request('/api/templates'),
+  getTemplate: (id: number) => request(`/api/templates/${id}`),
+  getTemplateParams: (templateId: number) => request(`/api/templates/${templateId}/params`),
 
   // Quotes
   loadDraft: (projectId: number) => request(`/api/quotes/draft?projectId=${projectId}`, { method: 'POST' }),
