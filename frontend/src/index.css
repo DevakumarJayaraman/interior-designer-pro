@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .card { @apply rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-soft; }
+  .btn { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition; }
+  .btn-primary { @apply btn bg-slate-900 text-white hover:bg-slate-800 dark:bg-slate-50 dark:text-slate-900 dark:hover:bg-white; }
+  .btn-ghost { @apply btn bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800; }
+  .input { @apply w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-400; }
+  .label { @apply text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400; }
+  .chip { @apply rounded-full px-3 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-800; }
+}
